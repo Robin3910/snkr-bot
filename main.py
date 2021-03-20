@@ -50,28 +50,29 @@ def run(driver, username, password, url, shoe_size, login_time=None, release_tim
     # driver.maximize_window()
     driver.set_page_load_timeout(page_load_timeout)
 
-    if release_time:
-        release_time_stamp = int(time.mktime(time.strptime(release_time, '%Y-%m-%d %H:%M:%S'))) * 1000
-    if login_time:
-        LOGGER.info("Waiting until login time: " + login_time)
-        pause.until(date_parser.parse(login_time))
+    # if release_time:
+    #     release_time_stamp = int(time.mktime(time.strptime(release_time, '%Y-%m-%d %H:%M:%S'))) * 1000
+    # if login_time:
+    #     LOGGER.info("Waiting until login time: " + login_time)
+    #     pause.until(date_parser.parse(login_time))
+    #
 
-    skip_retry_login = True
-    try:
-        login(driver=driver, username=username, password=password)
-    except TimeoutException:
-        LOGGER.info("Failed to login due to timeout. Retrying...")
-        skip_retry_login = False
-    except Exception as e:
-        LOGGER.exception("Failed to login: " + str(e))
-        six.reraise(Exception, e, sys.exc_info()[2])
-
-    if skip_retry_login is False:
-        try:
-            retry_login(driver=driver, username=username, password=password)
-        except Exception as e:
-            LOGGER.exception("Failed to retry login: " + str(e))
-            six.reraise(Exception, e, sys.exc_info()[2])
+    # skip_retry_login = True
+    # try:
+    #     login(driver=driver, username=username, password=password)
+    # except TimeoutException:
+    #     LOGGER.info("Failed to login due to timeout. Retrying...")
+    #     skip_retry_login = False
+    # except Exception as e:
+    #     LOGGER.exception("Failed to login: " + str(e))
+    #     six.reraise(Exception, e, sys.exc_info()[2])
+    #
+    # if skip_retry_login is False:
+    #     try:
+    #         retry_login(driver=driver, username=username, password=password)
+    #     except Exception as e:
+    #         LOGGER.exception("Failed to retry login: " + str(e))
+    #         six.reraise(Exception, e, sys.exc_info()[2])
 
     # if release_time:
     #     LOGGER.info("Waiting until release time: " + release_time)
@@ -80,10 +81,25 @@ def run(driver, username, password, url, shoe_size, login_time=None, release_tim
     try:
         LOGGER.info("Requesting page: " + url)
         driver.get(url)
+        driver.maximize_window()
+        wait_until_visible(driver, css_selector="button[data-qa='top-nav-join-or-login-button']", duration=50)
+        login_btn = driver.find_elements_by_css_selector("button[data-qa='top-nav-join-or-login-button']")[0]
+        while True:
+            login_btn.click()
+            wait_until_visible(driver, css_selector="div.view-header", duration=3)
+            if driver.find_element_by_css_selector("div.view-header"):
+                wait_until_visible(driver, xpath="//img[@data-qa='portrait-img']", duration=120)
+                # login(driver, username, password)
+                break
+            else:
+                sleep(5)
+
+
+
         LOGGER.info("Waiting for page complete...")
         product_id = driver.find_element_by_name("branch:deeplink:productId").get_attribute("content")
         # LOGGER.info("fetch product id:", product_id)
-        new_url = url + "?size=" + shoe_size + "&productId=" + product_id
+        new_url = url + "?size=" + str(shoe_size) + "&productId=" + product_id
         driver.get(new_url)
 
         LOGGER.info("waiting for Alipay button show...")
@@ -93,11 +109,11 @@ def run(driver, username, password, url, shoe_size, login_time=None, release_tim
         payment_btn.click()
 
         LOGGER.info("waiting for save button show...")
-        wait_until_present(driver, class_name="ncss-btn-primary-dark", duration=50)
-        save_btn = driver.find_element_by_class_name("ncss-btn-primary-dark")
-        save_btn.click()
+        wait_until_present(driver, xpath="//button[@data-qa='save-button']", duration=50)
+        save_btn = driver.find_element_by_css_selector("div.payment-section>button[data-qa='save-button']")
+        save_btn[2].click()
 
-        click_save_button(driver)
+        # click_save_button(driver)
         LOGGER.info('submit save')
         # while True:
         #     current_time = time.time() * 1000
@@ -111,32 +127,35 @@ def run(driver, username, password, url, shoe_size, login_time=None, release_tim
         LOGGER.info("Page load timed out but continuing anyway")
 
 
-
-
 def login(driver, username, password):
     try:
         LOGGER.info("Requesting page: " + NIKE_HOME_URL)
-        driver.get(NIKE_HOME_URL)
+        # driver.get(NIKE_HOME_URL)
     except TimeoutException:
         LOGGER.info("Page load timed out but continuing anyway")
 
     LOGGER.info("Waiting for login fields to become visible")
-    wait_until_visible(driver=driver, xpath="//input[@name='emailAddress']")
+    wait_until_visible(driver=driver, css_selector="div.view-header")
 
     LOGGER.info("Entering username and password")
-    email_input = driver.find_element_by_xpath("//input[@name='emailAddress']")
-    email_input.clear()
-    email_input.send_keys(username)
+    username_input = driver.find_element_by_xpath("//input[@name='verifyMobileNumber']")
+    username_input.clear()
+    username_input.click()
+    sleep(2)
+    username_input.send_keys(username)
+
+    sleep(3)
 
     password_input = driver.find_element_by_xpath("//input[@name='password']")
     password_input.clear()
+    password_input.click()
+    sleep(2)
     password_input.send_keys(password)
 
-    sleep(5)
-    LOGGER.info("Logging in")
-    driver.find_element_by_xpath("//input[@value='SIGN IN']").click()
+    sleep(3)
 
-    wait_until_visible(driver=driver, xpath="//a[@data-path='myAccount:greeting']", duration=50)
+    LOGGER.info("Logging in")
+    driver.find_element_by_xpath("//input[@value='登录']").click()
 
     LOGGER.info("Successfully logged in")
 
@@ -326,6 +345,7 @@ def input_cvv(driver, cvv):
 
     driver.switch_to.parent_frame()
 
+
 def click_save_button(driver, xpath_o=None, check_disabled=True):
     if xpath_o:
         xpath = xpath_o
@@ -489,7 +509,7 @@ def poll_checkout_phase_two(driver):
         return skip_payment
 
 
-def wait_until_clickable(driver, xpath=None, class_name=None, el_id=None, css_selector=None,  duration=10000,
+def wait_until_clickable(driver, xpath=None, class_name=None, el_id=None, css_selector=None, duration=10000,
                          frequency=0.1):
     if xpath:
         WebDriverWait(driver, duration, frequency).until(EC.element_to_be_clickable((By.XPATH, xpath)))
@@ -589,7 +609,7 @@ if __name__ == "__main__":
         else:
             raise Exception(
                 "Drivers for installed operating system not found. Try specifying the path to the drivers with the --webdriver-path option")
-        driver = webdriver.Chrome(executable_path=executable_path, chrome_options=options)
+        driver = webdriver.Chrome(executable_path=executable_path, options=options)
     else:
         raise Exception("Specified web browser not supported, only Firefox and Chrome are supported at this point")
 
